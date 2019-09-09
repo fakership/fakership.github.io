@@ -229,6 +229,147 @@
   
   
   <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/04/21/函数防抖以及函数节流的一点心得/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="fakership">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="fakership の blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2017/04/21/函数防抖以及函数节流的一点心得/" itemprop="url">函数防抖以及函数节流的一点心得(一)</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-04-21T14:39:34+08:00">
+                2017-04-21
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <p>函数防抖以及函数节流为什么要诞生，主要是因为<strong>对性能的优化</strong>，而防抖以及节流的目的其实一直贯彻的是<strong>懒加载</strong>而已，让函数不要那么频繁地执行。</p>
+<p>而不让函数那么频繁地执行，有人就很好奇，我自己写的<code>js</code>为什么会让它那么频繁地执行呢？也是，如果是你自己纯碎写的<code>ES</code>代码，除了递归以及大循环之外，倒也不会频繁地执行，而且即使频繁地执行，浏览器的也完全吃的消。</p>
+<p>但如果涉及到DOM的操作，这就有点麻烦了。因为众所周知，DOM的操作是很耗性能的，JS跟DOM之间是要收取过桥费的。</p>
+<p>JS中有些操作是即使用户没有不怀好心，也会让你的函数很频繁地操作，然后导致浏览器卡顿设置退出，这些函数有<code>onresize</code>,<code>onscroll</code>,<code>ontouchmove</code>,<code>onmousemove</code>等等。</p>
+<p>当你写出如下的代码<br><figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> scrollHandler = <span class="function"><span class="params">()</span> =&gt;</span> &#123;</span><br><span class="line">  <span class="built_in">console</span>.log(<span class="string">'i am resizing'</span>)</span><br><span class="line">&#125;</span><br><span class="line"><span class="built_in">window</span>.addEventListener(<span class="string">'scroll'</span>, scrollHandler)</span><br></pre></td></tr></table></figure></p>
+<p>然后你开始滚动鼠标，你会发现，控制台里犹如雨后春笋般地疯狂打印<code>i am resizing</code>，有的人可能觉得这没有什么，但这可是作为测试的<code>console.log</code>，假设这个<code>scrollHandler</code>里头不是简简单单就是执行<code>console.log</code>，而是<code>ajax</code>请求，细思恐极有没有啊，短短1s时间内会向服务器发送上百个请求！！！</p>
+<p>那么，接下来就很简单，如何不让他一直执行函数呢，很简单，开定时器呗，给他来个时间限制就可以了。</p>
+<p>而函数节流以及函数防抖就是贯彻这种思路的两种处理方式</p>
+<ul>
+<li>函数节流：一定时间内，我的js函数只跑一次</li>
+<li>函数防抖：你动，我不动；你动，我开始记时动</li>
+</ul>
+<p>函数防抖有个很形象的比喻，有一部电梯，里面的人都很淡定，也不会着急去按关门按钮，所以这个时候的逻辑就这样的，一个人进来，电梯会隔一段时间然后走起，如果是两个人呢，那电梯得等第二个人进来，然后再隔一段时间走起，三个人呢，以此类推，直到没有人进入，电梯才会隔一段时间，然后再走起。</p>
+<p>既然思路已经出现，那下来就拿代码搞个例子</p>
+<h3 id="函数节流"><a href="#函数节流" class="headerlink" title="函数节流"></a>函数节流</h3><figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> canRun = <span class="literal">true</span> <span class="comment">// 声明开关</span></span><br><span class="line"><span class="keyword">let</span> scrollHandler = <span class="function"><span class="params">()</span> =&gt;</span> &#123;</span><br><span class="line">  <span class="keyword">let</span> timer = <span class="literal">null</span></span><br><span class="line">  <span class="keyword">if</span>(!canRun) &#123;</span><br><span class="line">    <span class="keyword">return</span></span><br><span class="line">  &#125;</span><br><span class="line">  canRun = <span class="literal">false</span> <span class="comment">// 关闭开关</span></span><br><span class="line">  timer = setTimeout(<span class="function"><span class="params">()</span> =&gt;</span> &#123;</span><br><span class="line">    <span class="built_in">console</span>.log(<span class="string">'i am resizing'</span>)</span><br><span class="line">    canRun = <span class="literal">true</span> <span class="comment">// 500ms后打开此开关</span></span><br><span class="line">  &#125;, <span class="number">500</span>)</span><br><span class="line">&#125;</span><br><span class="line"><span class="built_in">window</span>.addEventListener(<span class="string">'scroll'</span>, scrollHandler)</span><br></pre></td></tr></table></figure>
+<h3 id="函数防抖"><a href="#函数防抖" class="headerlink" title="函数防抖"></a>函数防抖</h3><figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> timer = <span class="literal">null</span></span><br><span class="line"><span class="keyword">let</span> scrollHandler = <span class="function"><span class="params">()</span> =&gt;</span> &#123;</span><br><span class="line">  clearTimeout(timer)</span><br><span class="line">  timer = setTimeout(<span class="function"><span class="params">()</span> =&gt;</span> &#123;</span><br><span class="line">    <span class="built_in">console</span>.log(<span class="string">'i am resizing'</span>)</span><br><span class="line">  &#125;, <span class="number">500</span>)</span><br><span class="line">&#125;</span><br><span class="line"><span class="built_in">window</span>.addEventListener(<span class="string">'scroll'</span>, scrollHandler)</span><br></pre></td></tr></table></figure>
+<p>当然，以上都是些比较好理解的代码，作为节流以及防抖的认识，已经足够了，明天再补上关于<code>lodash</code>对于<code>throttle</code>函数节流以及<code>debounce</code>函数防抖的源码实现。</p>
+<p>参考文章：</p>
+<ul>
+<li><a href="http://www.jianshu.com/p/b73c2acad696" target="_blank" rel="noopener">JavaScript函数节流和函数防抖之间的区别</a></li>
+<li><a href="https://wall-wxk.github.io/blogDemo/2017/02/15/throttleAndDebounce.html" target="_blank" rel="noopener">函数节流以及函数防抖的demo，建议点击，能够帮你更快的理解</a></li>
+</ul>
+
+          
+        
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
     <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/04/13/西安两日游记/">
 
     <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
@@ -659,7 +800,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">13</span>
+                  <span class="site-state-item-count">14</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
